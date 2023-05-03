@@ -7,6 +7,7 @@
 #include <bits/stdc++.h>
 #include <string>
 #include <sys/mman.h>
+#include <sstream>
 using namespace std;
 
 
@@ -23,50 +24,40 @@ long long input_clock = 0;
 long long output_clock = 0;
 long long merge_clock = 0;
 
+
+
 void merge_runs(const vector<string>& inputs, const string& output) {
-    cout << "outfile: " << output << endl;
     auto start_1 = chrono::steady_clock::now();
-    vector<vector<string>> files(inputs.size());
-    vector<int> index(inputs.size(), 0);
-    string line;
 
-    auto input_start = chrono::steady_clock::now();
+    vector<ifstream> files(inputs.size());
     for (size_t i = 0; i < inputs.size(); ++i) {
-        
-        ifstream file(inputs[i]);
-        while(getline(file, line)){
-            files[i].push_back(line);
-        }
-        file.close();
+        files[i].open(inputs[i] + ".txt");
     }
-    auto input_end = chrono::steady_clock::now();
-    input_clock += chrono::duration_cast<chrono::milliseconds>(input_end - input_start).count();
 
-    ofstream outfile(output);
-    // outfile.rdbuf()->pubsetbuf(0, 1024);
+    ofstream outfile(output + ".txt");
+    outfile.rdbuf()->pubsetbuf(0, 102400);
     
     auto merge_start = chrono::steady_clock::now();
     priority_queue<pair<string, int>, vector<pair<string, int>>, greater<pair<string, int>>> min_heap;
     for (size_t i = 0; i < files.size(); ++i) {
         string key;
-        if (index[i] < files[i].size()){
-            min_heap.push({files[i][index[i]], static_cast<int>(i)});
-            index[i]++;
+        if (getline(files[i], key)) {
+            min_heap.push({key, static_cast<int>(i)});
         }
     }
 
     while (!min_heap.empty()) {
         pair<string, int> min_pair = min_heap.top();
         min_heap.pop();
-        // auto output_start = chrono::steady_clock::now();
         outfile << min_pair.first << "\n";
+        // auto output_start = chrono::steady_clock::now();
+        // writeStringToBinary(min_pair.first + "\n", outfile);
         // auto output_end = chrono::steady_clock::now();
         // output_clock += chrono::duration_cast<chrono::milliseconds>(output_end - output_start).count();
 
         string key;
-        if (index[min_pair.second] < files[min_pair.second].size()) {
-            min_heap.push({files[min_pair.second][index[min_pair.second]], min_pair.second});
-            index[min_pair.second]++;
+        if (getline(files[min_pair.second], key)) {
+            min_heap.push({key, min_pair.second});
         }
     }
 
@@ -74,11 +65,9 @@ void merge_runs(const vector<string>& inputs, const string& output) {
     merge_clock += chrono::duration_cast<chrono::milliseconds>(merge_end - merge_start).count();
     outfile.flush();
     outfile.close();
-
     for (size_t i = 0; i < files.size(); ++i) {
-        vector<string>().swap(files[i]);
+        files[i].close();
     }
-    vector<vector<string>>().swap(files);
     auto end_1 = chrono::steady_clock::now();
     mergeruns_clock += chrono::duration_cast<chrono::milliseconds>(end_1 - start_1).count();
     
@@ -94,7 +83,20 @@ void merge_runs(const vector<string>& inputs, const string& output) {
 int externalmergesortwithstop ( const char* input , const char* output ,
 const long key_count , const int k = 2 , const int num_merges = 0 ) {
 
-    int size_run=100000;
+    long long int memuse = key_count * 1024;
+    long long total = 512*1024*1024;
+    cout << "key count: " << key_count << endl;
+    cout << "mem use: " << memuse << endl;
+    cout << "total: " << total << endl;
+    int files_present = k;
+    long int size_run;
+    if (memuse < total){
+        size_run = (memuse/(1024));
+    } else {
+        size_run = (total/(1024*k));
+    }
+    cout << "size run: " << size_run << endl;
+
     vector<string> run_files;
     
     ifstream input_stream(input);
@@ -104,21 +106,26 @@ const long key_count , const int k = 2 , const int num_merges = 0 ) {
         // Read size_run keys into memory and sort them
         vector<string> keys;
         keys.reserve(size_run);
-        for (int i = 0; i < size_run && !input_stream.eof(); i++) {
+        for (int i = 0; i < size_run; i++) {
             string key;
-            getline(input_stream, key);
-            keys.push_back(key);
-            keys_read++;
+            if (getline(input_stream, key)){
+                keys.push_back(key);
+                keys_read++;
+            }else{
+                break;
+            }
         }
         sort(keys.begin(), keys.end());
         // Write sorted keys to a run file
         run_num++;
         string run_file = "temp.0." + to_string(run_num);
-        ofstream run_stream(run_file);
-        // run_stream.rdbuf()->pubsetbuf(0, 1024);
+        ofstream run_stream(run_file + ".txt");
+        run_stream.rdbuf()->pubsetbuf(0, 10240);
+        // cout << keys.size() << endl;
         for (const auto& key : keys) {
             run_stream << key << '\n';
         }
+        
         vector<string>().swap(keys);
         run_files.push_back(run_file);
         run_stream.flush();
@@ -169,7 +176,9 @@ const long key_count , const int k = 2 , const int num_merges = 0 ) {
     if (run_files.size() != 1) {
         return merge_steps;  // Something went wrong, we should have exactly one run file
     }
-    else rename(run_files[0].c_str(), output) != 0;
+    else {
+        rename((run_files[0] + ".txt").c_str(), output) != 0;
+    }
         
 
 
@@ -177,13 +186,13 @@ const long key_count , const int k = 2 , const int num_merges = 0 ) {
 }
 
 
-int main() {
-    auto start = chrono::steady_clock::now();
-      externalmergesortwithstop ( "input.txt" , "output.txt" , 1000000 , 2 , 0 );
-    auto end = chrono::steady_clock::now();
-    cout<<chrono::duration_cast<chrono::milliseconds>(end-start).count()<< " milliseconds" << endl;
-    cout << mergeruns_clock << " milliseconds" << endl;
-    cout << "input time: " << input_clock << " milliseconds" << endl;
-    cout << "output time: " << output_clock << " milliseconds" << endl;
-    cout << "merge time: " << merge_clock << " milliseconds" << endl;
-}
+// int main() {
+//     auto start = chrono::steady_clock::now();
+//       externalmergesortwithstop ( "test4" , "output.txt" , 2000000 ,8 , 0 );
+//     auto end = chrono::steady_clock::now();
+//     cout<<chrono::duration_cast<chrono::milliseconds>(end-start).count()<< " milliseconds" << endl;
+//     cout << mergeruns_clock << " milliseconds" << endl;
+//     cout << "input time: " << input_clock << " milliseconds" << endl;
+//     cout << "output time: " << output_clock << " milliseconds" << endl;
+//     cout << "merge time: " << merge_clock << " milliseconds" << endl;
+// }
