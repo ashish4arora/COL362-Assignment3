@@ -80,7 +80,7 @@ void merge_runs(const vector<string>& inputs, const string& output) {
  on a file consisting of string values. The description of arguments
  is given in the assignment document.
 */
-int externalmergesortwithstop ( const char* input , const char* output ,
+int external_merge_sort_withstop ( const char* input , const char* output ,
 const long key_count , const int k = 2 , const int num_merges = 0 ) {
 
     long long int memuse = key_count * 1024;
